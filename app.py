@@ -28,7 +28,12 @@ FIGURE_DIR = BASE_DIR / "output" / "figures"
 # =========================================================
 # 3. Matplotlib 中文字体
 # =========================================================
-plt.rcParams["font.sans-serif"] = ["Microsoft YaHei"]
+plt.rcParams["font.sans-serif"] = [
+    "Noto Sans CJK SC",
+    "Microsoft YaHei",
+    "SimHei",
+    "Arial Unicode MS"
+]
 plt.rcParams["axes.unicode_minus"] = False
 
 
