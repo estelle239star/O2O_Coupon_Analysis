@@ -29,25 +29,29 @@ FIGURE_DIR = BASE_DIR / "output" / "figures"
 # 3. Matplotlib 中文字体
 # =========================================================
 from matplotlib import font_manager
+from pathlib import Path
 
-# 自动寻找可用中文字体，兼容 Windows 和 Streamlit Cloud
-chinese_fonts = [
-    "Noto Sans CJK SC",
-    "Noto Sans CJK JP",
-    "Microsoft YaHei",
-    "SimHei"
-]
+# Streamlit Cloud（Linux）中文字体
+cloud_font = Path(
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+)
 
-available_fonts = {f.name for f in font_manager.fontManager.ttflist}
+if cloud_font.exists():
+    # 云端：直接注册字体文件
+    font_manager.fontManager.addfont(str(cloud_font))
+    chinese_font = font_manager.FontProperties(
+        fname=str(cloud_font)
+    ).get_name()
 
-for font_name in chinese_fonts:
-    if font_name in available_fonts:
-        plt.rcParams["font.family"] = font_name
-        plt.rcParams["font.sans-serif"] = [font_name]
-        break
+    plt.rcParams["font.family"] = chinese_font
+    plt.rcParams["font.sans-serif"] = [chinese_font]
+
+else:
+    # 本地 Windows
+    plt.rcParams["font.family"] = "Microsoft YaHei"
+    plt.rcParams["font.sans-serif"] = ["Microsoft YaHei"]
 
 plt.rcParams["axes.unicode_minus"] = False
-
 
 # =========================================================
 # 4. 页面样式
