@@ -1,0 +1,24 @@
+# 原始数据
+data/raw/
+
+# 处理后的大数据文件
+data/processed/*.parquet
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Jupyter temporary files
+.ipynb_checkpoints/
+
+# Environment
+.venv/
+venv/
+env/
+
+# VS Code
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
