@@ -28,12 +28,24 @@ FIGURE_DIR = BASE_DIR / "output" / "figures"
 # =========================================================
 # 3. Matplotlib 中文字体
 # =========================================================
-plt.rcParams["font.sans-serif"] = [
+from matplotlib import font_manager
+
+# 自动寻找可用中文字体，兼容 Windows 和 Streamlit Cloud
+chinese_fonts = [
     "Noto Sans CJK SC",
+    "Noto Sans CJK JP",
     "Microsoft YaHei",
-    "SimHei",
-    "Arial Unicode MS"
+    "SimHei"
 ]
+
+available_fonts = {f.name for f in font_manager.fontManager.ttflist}
+
+for font_name in chinese_fonts:
+    if font_name in available_fonts:
+        plt.rcParams["font.family"] = font_name
+        plt.rcParams["font.sans-serif"] = [font_name]
+        break
+
 plt.rcParams["axes.unicode_minus"] = False
 
 
