@@ -78,9 +78,9 @@ st.markdown(
 @st.cache_data
 def load_data():
 
-    valid_model = pd.read_parquet(
-        DATA_DIR / "valid_model.parquet"
-    )
+    valid_model = pd.read_csv(
+    TABLE_DIR / "dashboard_data.csv"
+)
 
     model_comparison = pd.read_csv(
         TABLE_DIR / "model_comparison.csv"
