@@ -29,52 +29,19 @@ FIGURE_DIR = BASE_DIR / "output" / "figures"
 # 3. Matplotlib 中文字体
 # =========================================================
 
-# Streamlit Cloud / Linux 中 fonts-noto-cjk 常见字体位置
-FONT_CANDIDATES = [
-    Path("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"),
-    Path("/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"),
-    Path("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc"),
-]
+FONT_PATH = BASE_DIR / "fonts" / "NotoSansSC-Regular.ttf"
 
-CN_FONT = None
+if not FONT_PATH.exists():
+    st.error(f"找不到中文字体文件：{FONT_PATH}")
+    st.stop()
 
-# 先尝试固定路径
-for font_path in FONT_CANDIDATES:
-    if font_path.exists():
-        CN_FONT = font_manager.FontProperties(
-            fname=str(font_path)
-        )
-        break
+font_manager.fontManager.addfont(str(FONT_PATH))
 
-# 如果固定路径没找到，再扫描系统字体
-if CN_FONT is None:
+CN_FONT = font_manager.FontProperties(
+    fname=str(FONT_PATH)
+)
 
-    system_fonts = font_manager.findSystemFonts(
-        fontpaths=None,
-        fontext="ttf"
-    )
-
-    for font_path in system_fonts:
-
-        font_lower = font_path.lower()
-
-        if (
-            "notosanscjk" in font_lower
-            or "notoserifcjk" in font_lower
-            or "sourcehansans" in font_lower
-            or "sourcehanserif" in font_lower
-        ):
-            CN_FONT = font_manager.FontProperties(
-                fname=font_path
-            )
-            break
-
-# Windows 本地兜底
-if CN_FONT is None:
-    CN_FONT = font_manager.FontProperties(
-        family="Microsoft YaHei"
-    )
-
+plt.rcParams["font.family"] = CN_FONT.get_name()
 plt.rcParams["axes.unicode_minus"] = False
 
 
