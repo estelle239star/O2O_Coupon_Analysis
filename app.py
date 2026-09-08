@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib import font_manager
 from pathlib import Path
 
 
@@ -20,7 +21,6 @@ st.set_page_config(
 # =========================================================
 BASE_DIR = Path(__file__).resolve().parent
 
-DATA_DIR = BASE_DIR / "data" / "processed"
 TABLE_DIR = BASE_DIR / "output" / "tables"
 FIGURE_DIR = BASE_DIR / "output" / "figures"
 
@@ -28,30 +28,91 @@ FIGURE_DIR = BASE_DIR / "output" / "figures"
 # =========================================================
 # 3. Matplotlib 中文字体
 # =========================================================
-from matplotlib import font_manager
-from pathlib import Path
 
-# Streamlit Cloud（Linux）中文字体
-cloud_font = Path(
-    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
-)
+# Streamlit Cloud / Linux 中 fonts-noto-cjk 常见字体位置
+FONT_CANDIDATES = [
+    Path("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"),
+    Path("/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"),
+    Path("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc"),
+]
 
-if cloud_font.exists():
-    # 云端：直接注册字体文件
-    font_manager.fontManager.addfont(str(cloud_font))
-    chinese_font = font_manager.FontProperties(
-        fname=str(cloud_font)
-    ).get_name()
+CN_FONT = None
 
-    plt.rcParams["font.family"] = chinese_font
-    plt.rcParams["font.sans-serif"] = [chinese_font]
+# 先尝试固定路径
+for font_path in FONT_CANDIDATES:
+    if font_path.exists():
+        CN_FONT = font_manager.FontProperties(
+            fname=str(font_path)
+        )
+        break
 
-else:
-    # 本地 Windows
-    plt.rcParams["font.family"] = "Microsoft YaHei"
-    plt.rcParams["font.sans-serif"] = ["Microsoft YaHei"]
+# 如果固定路径没找到，再扫描系统字体
+if CN_FONT is None:
+
+    system_fonts = font_manager.findSystemFonts(
+        fontpaths=None,
+        fontext="ttf"
+    )
+
+    for font_path in system_fonts:
+
+        font_lower = font_path.lower()
+
+        if (
+            "notosanscjk" in font_lower
+            or "notoserifcjk" in font_lower
+            or "sourcehansans" in font_lower
+            or "sourcehanserif" in font_lower
+        ):
+            CN_FONT = font_manager.FontProperties(
+                fname=font_path
+            )
+            break
+
+# Windows 本地兜底
+if CN_FONT is None:
+    CN_FONT = font_manager.FontProperties(
+        family="Microsoft YaHei"
+    )
 
 plt.rcParams["axes.unicode_minus"] = False
+
+
+def set_cn_font(
+    ax,
+    title=None,
+    xlabel=None,
+    ylabel=None
+):
+    """
+    给 Matplotlib 图中的所有文字强制设置中文字体
+    """
+
+    if title is not None:
+        ax.set_title(
+            title,
+            fontproperties=CN_FONT,
+            fontsize=13
+        )
+
+    if xlabel is not None:
+        ax.set_xlabel(
+            xlabel,
+            fontproperties=CN_FONT
+        )
+
+    if ylabel is not None:
+        ax.set_ylabel(
+            ylabel,
+            fontproperties=CN_FONT
+        )
+
+    for label in ax.get_xticklabels():
+        label.set_fontproperties(CN_FONT)
+
+    for label in ax.get_yticklabels():
+        label.set_fontproperties(CN_FONT)
+
 
 # =========================================================
 # 4. 页面样式
@@ -59,6 +120,7 @@ plt.rcParams["axes.unicode_minus"] = False
 st.markdown(
     """
     <style>
+
     .block-container {
         padding-top: 1.8rem;
         padding-bottom: 3rem;
@@ -87,6 +149,7 @@ st.markdown(
     h3 {
         margin-top: 0.5rem;
     }
+
     </style>
     """,
     unsafe_allow_html=True
@@ -100,8 +163,8 @@ st.markdown(
 def load_data():
 
     valid_model = pd.read_csv(
-    TABLE_DIR / "dashboard_data.csv"
-)
+        TABLE_DIR / "dashboard_data.csv"
+    )
 
     model_comparison = pd.read_csv(
         TABLE_DIR / "model_comparison.csv"
@@ -140,8 +203,12 @@ try:
 
 except Exception as e:
 
-    st.error("数据读取失败，请检查 data/processed 和 output/tables 文件。")
+    st.error(
+        "数据读取失败，请检查 output/tables 文件。"
+    )
+
     st.exception(e)
+
     st.stop()
 
 
@@ -149,8 +216,14 @@ except Exception as e:
 # 6. 基础指标
 # =========================================================
 sample_count = len(valid_model)
-redeem_count = int(valid_model["label"].sum())
-baseline_rate = valid_model["label"].mean()
+
+redeem_count = int(
+    valid_model["label"].sum()
+)
+
+baseline_rate = (
+    valid_model["label"].mean()
+)
 
 top10_rate = (
     topk_results.iloc[0]["实际核销率"]
@@ -163,33 +236,76 @@ top10_rate = (
 # 7. 特征中文映射
 # =========================================================
 FEATURE_NAME_MAP = {
-    "merchant_mature_coupon_count": "商户历史优惠券数量",
-    "receive_day": "领券日期",
-    "merchant_mature_redeem_rate": "商户历史核销率",
-    "merchant_mature_redeem_count": "商户历史核销次数",
-    "distance_value": "用户与商户距离",
-    "coupon_mature_receive_count": "优惠券历史领取量",
-    "discount_rate_value": "实际折扣力度",
-    "discount_threshold": "满减门槛",
-    "receive_month": "领券月份",
-    "user_mature_coupon_count": "用户历史领券次数",
-    "coupon_mature_redeem_rate": "优惠券历史核销率",
-    "coupon_mature_redeem_count": "优惠券历史核销次数",
-    "receive_weekday": "领券星期",
-    "user_mature_redeem_rate": "用户历史核销率",
-    "distance_missing": "距离缺失标记",
-    "user_mature_redeem_count": "用户历史核销次数",
-    "is_manjian": "是否满减",
-    "is_weekend": "是否周末",
-    "discount_reduction": "优惠减免金额"
+
+    "merchant_mature_coupon_count":
+        "商户历史优惠券数量",
+
+    "receive_day":
+        "领券日期",
+
+    "merchant_mature_redeem_rate":
+        "商户历史核销率",
+
+    "merchant_mature_redeem_count":
+        "商户历史核销次数",
+
+    "distance_value":
+        "用户与商户距离",
+
+    "coupon_mature_receive_count":
+        "优惠券历史领取量",
+
+    "discount_rate_value":
+        "实际折扣力度",
+
+    "discount_threshold":
+        "满减门槛",
+
+    "receive_month":
+        "领券月份",
+
+    "user_mature_coupon_count":
+        "用户历史领券次数",
+
+    "coupon_mature_redeem_rate":
+        "优惠券历史核销率",
+
+    "coupon_mature_redeem_count":
+        "优惠券历史核销次数",
+
+    "receive_weekday":
+        "领券星期",
+
+    "user_mature_redeem_rate":
+        "用户历史核销率",
+
+    "distance_missing":
+        "距离缺失标记",
+
+    "user_mature_redeem_count":
+        "用户历史核销次数",
+
+    "is_manjian":
+        "是否满减",
+
+    "is_weekend":
+        "是否周末",
+
+    "discount_reduction":
+        "优惠减免金额"
 }
 
 
 # =========================================================
 # 8. 侧边栏
 # =========================================================
-st.sidebar.title("📊 O2O精准营销")
-st.sidebar.caption("数据分析项目 Dashboard")
+st.sidebar.title(
+    "📊 O2O精准营销"
+)
+
+st.sidebar.caption(
+    "数据分析项目 Dashboard"
+)
 
 page = st.sidebar.radio(
     "页面导航",
@@ -226,19 +342,24 @@ st.sidebar.markdown(
 # =========================================================
 if page == "🏠 项目总览":
 
-    st.title("O2O优惠券精准营销分析")
+    st.title(
+        "O2O优惠券精准营销分析"
+    )
 
     st.markdown(
         """
-        基于O2O优惠券消费数据，从**用户行为、优惠券属性、消费场景和历史行为**
-        等维度进行分析，并结合机器学习模型识别高核销倾向样本，
+        基于O2O优惠券消费数据，从**用户行为、优惠券属性、
+        消费场景和历史行为**等维度进行分析，
+        并结合机器学习模型识别高核销倾向样本，
         最终形成可执行的精准营销策略。
         """
     )
 
     st.divider()
 
-    st.header("📌 核心成果")
+    st.header(
+        "📌 核心成果"
+    )
 
     col1, col2, col3, col4 = st.columns(4)
 
@@ -263,17 +384,24 @@ if page == "🏠 项目总览":
     )
 
     st.caption(
-        "Top 10%高潜样本核销率明显高于整体水平，说明模型具有较好的高潜样本识别能力。"
+        "Top 10%高潜样本核销率明显高于整体水平，"
+        "说明模型具有较好的高潜样本识别能力。"
     )
 
     st.divider()
 
-    st.header("🔍 项目方法")
+    st.header(
+        "🔍 项目方法"
+    )
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.subheader("① 数据分析")
+
+        st.subheader(
+            "① 数据分析"
+        )
+
         st.markdown(
             """
             - 数据清洗与标签构建
@@ -284,7 +412,11 @@ if page == "🏠 项目总览":
         )
 
     with col2:
-        st.subheader("② 机器学习")
+
+        st.subheader(
+            "② 机器学习"
+        )
+
         st.markdown(
             """
             - 无泄漏历史特征构建
@@ -295,7 +427,11 @@ if page == "🏠 项目总览":
         )
 
     with col3:
-        st.subheader("③ 精准营销")
+
+        st.subheader(
+            "③ 精准营销"
+        )
+
         st.markdown(
             """
             - 高潜样本排序
@@ -307,7 +443,9 @@ if page == "🏠 项目总览":
 
     st.divider()
 
-    st.header("💡 核心业务发现")
+    st.header(
+        "💡 核心业务发现"
+    )
 
     col1, col2 = st.columns(2)
 
@@ -319,7 +457,8 @@ if page == "🏠 项目总览":
 
             整体核销率：**{baseline_rate:.2%}**
 
-            Top 10%高潜样本核销率：**{top10_rate:.2%}**
+            Top 10%高潜样本核销率：
+            **{top10_rate:.2%}**
 
             模型排序能够显著提高目标用户筛选效率。
             """
@@ -329,7 +468,8 @@ if page == "🏠 项目总览":
             """
             **用户历史行为**
 
-            历史核销次数越多的用户，后续核销率整体越高，
+            历史核销次数越多的用户，
+            后续核销率整体越高，
             因此用户历史行为是重要的营销分层依据。
             """
         )
@@ -361,11 +501,14 @@ if page == "🏠 项目总览":
 # =========================================================
 elif page == "🎟️ 优惠券分析":
 
-    st.title("🎟️ 优惠券策略分析")
+    st.title(
+        "🎟️ 优惠券策略分析"
+    )
 
     st.markdown(
         """
-        从**满减门槛、折扣力度和消费距离**三个角度分析优惠券核销表现。
+        从**满减门槛、折扣力度和消费距离**
+        三个角度分析优惠券核销表现。
         """
     )
 
@@ -374,7 +517,9 @@ elif page == "🎟️ 优惠券分析":
     # -----------------------------------------------------
     # 10.1 满减门槛
     # -----------------------------------------------------
-    st.header("1. 满减门槛与核销表现")
+    st.header(
+        "1. 满减门槛与核销表现"
+    )
 
     threshold_analysis = (
         valid_model[
@@ -387,44 +532,73 @@ elif page == "🎟️ 优惠券分析":
             核销率=("label", "mean")
         )
         .reset_index()
-        .sort_values("discount_threshold")
+        .sort_values(
+            "discount_threshold"
+        )
     )
 
-    threshold_analysis = threshold_analysis[
-        threshold_analysis["样本数"] >= 100
-    ]
+    threshold_analysis = (
+        threshold_analysis[
+            threshold_analysis["样本数"] >= 100
+        ]
+    )
 
-    col1, col2 = st.columns([1.5, 1])
+    col1, col2 = st.columns(
+        [1.5, 1]
+    )
 
     with col1:
 
-        fig, ax = plt.subplots(figsize=(7.5, 4.2))
-
-        ax.bar(
-            threshold_analysis["discount_threshold"].astype(str),
-            threshold_analysis["核销率"] * 100
+        fig, ax = plt.subplots(
+            figsize=(7.5, 4.2)
         )
 
-        ax.set_title("不同满减门槛的优惠券核销率")
-        ax.set_xlabel("满减门槛")
-        ax.set_ylabel("核销率（%）")
+        ax.bar(
+            threshold_analysis[
+                "discount_threshold"
+            ].astype(str),
+
+            threshold_analysis[
+                "核销率"
+            ] * 100
+        )
+
+        set_cn_font(
+            ax,
+            title="不同满减门槛的优惠券核销率",
+            xlabel="满减门槛",
+            ylabel="核销率（%）"
+        )
 
         plt.tight_layout()
-        st.pyplot(fig, use_container_width=True)
+
+        st.pyplot(
+            fig,
+            use_container_width=True
+        )
+
         plt.close(fig)
 
     with col2:
 
-        threshold_display = threshold_analysis.copy()
+        threshold_display = (
+            threshold_analysis.copy()
+        )
 
         threshold_display["核销率"] = (
-            threshold_display["核销率"] * 100
+            threshold_display["核销率"]
+            * 100
         ).round(2)
 
-        threshold_display = threshold_display.rename(
-    columns={"discount_threshold": "满减门槛"}
-)
-        
+        threshold_display = (
+            threshold_display.rename(
+                columns={
+                    "discount_threshold":
+                        "满减门槛"
+                }
+            )
+        )
+
         st.dataframe(
             threshold_display,
             use_container_width=True,
@@ -433,7 +607,8 @@ elif page == "🎟️ 优惠券分析":
 
     st.info(
         """
-        **结论：** 较低或适中的满减门槛整体具有更好的核销表现，
+        **结论：**
+        较低或适中的满减门槛整体具有更好的核销表现，
         过高门槛可能降低优惠券实际使用概率。
         """
     )
@@ -443,13 +618,28 @@ elif page == "🎟️ 优惠券分析":
     # -----------------------------------------------------
     # 10.2 折扣力度
     # -----------------------------------------------------
-    st.header("2. 优惠力度与核销表现")
+    st.header(
+        "2. 优惠力度与核销表现"
+    )
 
-    discount_analysis = valid_model.copy()
+    discount_analysis = (
+        valid_model.copy()
+    )
 
-    discount_analysis["discount_group"] = pd.cut(
-        discount_analysis["discount_rate_value"],
-        bins=[0, 0.6, 0.7, 0.8, 0.9, 1.0],
+    discount_analysis[
+        "discount_group"
+    ] = pd.cut(
+        discount_analysis[
+            "discount_rate_value"
+        ],
+        bins=[
+            0,
+            0.6,
+            0.7,
+            0.8,
+            0.9,
+            1.0
+        ],
         labels=[
             "≤6折",
             "6-7折",
@@ -474,36 +664,61 @@ elif page == "🎟️ 优惠券分析":
         .reset_index()
     )
 
-    col1, col2 = st.columns([1.5, 1])
+    col1, col2 = st.columns(
+        [1.5, 1]
+    )
 
     with col1:
 
-        fig, ax = plt.subplots(figsize=(7.5, 4.2))
-
-        ax.bar(
-            discount_summary["discount_group"].astype(str),
-            discount_summary["核销率"] * 100
+        fig, ax = plt.subplots(
+            figsize=(7.5, 4.2)
         )
 
-        ax.set_title("不同折扣区间的优惠券核销率")
-        ax.set_xlabel("折扣区间")
-        ax.set_ylabel("核销率（%）")
+        ax.bar(
+            discount_summary[
+                "discount_group"
+            ].astype(str),
+
+            discount_summary[
+                "核销率"
+            ] * 100
+        )
+
+        set_cn_font(
+            ax,
+            title="不同折扣区间的优惠券核销率",
+            xlabel="折扣区间",
+            ylabel="核销率（%）"
+        )
 
         plt.tight_layout()
-        st.pyplot(fig, use_container_width=True)
+
+        st.pyplot(
+            fig,
+            use_container_width=True
+        )
+
         plt.close(fig)
 
     with col2:
 
-        discount_display = discount_summary.copy()
+        discount_display = (
+            discount_summary.copy()
+        )
 
         discount_display["核销率"] = (
-            discount_display["核销率"] * 100
+            discount_display["核销率"]
+            * 100
         ).round(2)
 
-        discount_display = discount_display.rename(
-    columns={"discount_group": "折扣区间"}
-)
+        discount_display = (
+            discount_display.rename(
+                columns={
+                    "discount_group":
+                        "折扣区间"
+                }
+            )
+        )
 
         st.dataframe(
             discount_display,
@@ -513,7 +728,8 @@ elif page == "🎟️ 优惠券分析":
 
     st.info(
         """
-        **结论：** 折扣力度与核销率并不存在简单的单调关系，
+        **结论：**
+        折扣力度与核销率并不存在简单的单调关系，
         因此优惠券设计不能单纯依靠增加折扣力度。
         """
     )
@@ -521,54 +737,89 @@ elif page == "🎟️ 优惠券分析":
     st.divider()
 
     # -----------------------------------------------------
-    # 10.3 距离
+    # 10.3 消费距离
     # -----------------------------------------------------
-    st.header("3. 消费距离与核销表现")
+    st.header(
+        "3. 消费距离与核销表现"
+    )
 
     distance_summary = (
         valid_model[
-            valid_model["distance_missing"] == 0
+            valid_model[
+                "distance_missing"
+            ] == 0
         ]
-        .groupby("distance_value")
+        .groupby(
+            "distance_value"
+        )
         .agg(
             样本数=("label", "size"),
             核销数=("label", "sum"),
             核销率=("label", "mean")
         )
         .reset_index()
-        .sort_values("distance_value")
+        .sort_values(
+            "distance_value"
+        )
     )
 
-    col1, col2 = st.columns([1.6, 1])
+    col1, col2 = st.columns(
+        [1.6, 1]
+    )
 
     with col1:
 
-        fig, ax = plt.subplots(figsize=(7.5, 4.2))
+        fig, ax = plt.subplots(
+            figsize=(7.5, 4.2)
+        )
 
         ax.plot(
-            distance_summary["distance_value"],
-            distance_summary["核销率"] * 100,
+            distance_summary[
+                "distance_value"
+            ],
+
+            distance_summary[
+                "核销率"
+            ] * 100,
+
             marker="o"
         )
 
-        ax.set_title("消费距离与优惠券核销率")
-        ax.set_xlabel("消费距离")
-        ax.set_ylabel("核销率（%）")
+        set_cn_font(
+            ax,
+            title="消费距离与优惠券核销率",
+            xlabel="消费距离",
+            ylabel="核销率（%）"
+        )
 
         plt.tight_layout()
-        st.pyplot(fig, use_container_width=True)
+
+        st.pyplot(
+            fig,
+            use_container_width=True
+        )
+
         plt.close(fig)
 
     with col2:
 
-        distance_display = distance_summary.copy()
+        distance_display = (
+            distance_summary.copy()
+        )
+
         distance_display["核销率"] = (
-            distance_display["核销率"] * 100
+            distance_display["核销率"]
+            * 100
         ).round(2)
 
-        distance_display = distance_display.rename(
-    columns={"distance_value": "消费距离"}
-)
+        distance_display = (
+            distance_display.rename(
+                columns={
+                    "distance_value":
+                        "消费距离"
+                }
+            )
+        )
 
         st.dataframe(
             distance_display,
@@ -578,7 +829,8 @@ elif page == "🎟️ 优惠券分析":
 
     st.info(
         """
-        **结论：** 距离较近的消费场景整体具有更高的优惠券核销率，
+        **结论：**
+        距离较近的消费场景整体具有更高的优惠券核销率，
         因此消费距离可作为场景化营销的重要参考。
         """
     )
@@ -589,11 +841,14 @@ elif page == "🎟️ 优惠券分析":
 # =========================================================
 elif page == "👥 用户行为分析":
 
-    st.title("👥 用户行为分析")
+    st.title(
+        "👥 用户行为分析"
+    )
 
     st.markdown(
         """
-        使用预测时点之前已经成熟的历史行为，对用户营销价值进行分层分析。
+        使用预测时点之前已经成熟的历史行为，
+        对用户营销价值进行分层分析。
         """
     )
 
@@ -602,13 +857,26 @@ elif page == "👥 用户行为分析":
     # -----------------------------------------------------
     # 11.1 历史活跃度
     # -----------------------------------------------------
-    st.header("1. 用户历史活跃度")
+    st.header(
+        "1. 用户历史活跃度"
+    )
 
-    user_analysis = valid_model.copy()
+    user_analysis = (
+        valid_model.copy()
+    )
 
-    user_analysis["user_activity_group"] = pd.cut(
-        user_analysis["user_mature_coupon_count"],
-        bins=[-1, 0, 3, float("inf")],
+    user_analysis[
+        "user_activity_group"
+    ] = pd.cut(
+        user_analysis[
+            "user_mature_coupon_count"
+        ],
+        bins=[
+            -1,
+            0,
+            3,
+            float("inf")
+        ],
         labels=[
             "无历史记录",
             "低/中活跃用户",
@@ -630,36 +898,61 @@ elif page == "👥 用户行为分析":
         .reset_index()
     )
 
-    col1, col2 = st.columns([1.4, 1])
+    col1, col2 = st.columns(
+        [1.4, 1]
+    )
 
     with col1:
 
-        fig, ax = plt.subplots(figsize=(7, 4))
-
-        ax.bar(
-            activity_summary["user_activity_group"].astype(str),
-            activity_summary["核销率"] * 100
+        fig, ax = plt.subplots(
+            figsize=(7, 4)
         )
 
-        ax.set_title("不同历史活跃度用户核销率")
-        ax.set_xlabel("用户类型")
-        ax.set_ylabel("核销率（%）")
+        ax.bar(
+            activity_summary[
+                "user_activity_group"
+            ].astype(str),
+
+            activity_summary[
+                "核销率"
+            ] * 100
+        )
+
+        set_cn_font(
+            ax,
+            title="不同历史活跃度用户核销率",
+            xlabel="用户类型",
+            ylabel="核销率（%）"
+        )
 
         plt.tight_layout()
-        st.pyplot(fig, use_container_width=True)
+
+        st.pyplot(
+            fig,
+            use_container_width=True
+        )
+
         plt.close(fig)
 
     with col2:
 
-        activity_display = activity_summary.copy()
+        activity_display = (
+            activity_summary.copy()
+        )
 
         activity_display["核销率"] = (
-            activity_display["核销率"] * 100
+            activity_display["核销率"]
+            * 100
         ).round(2)
 
-        activity_display = activity_display.rename(
-    columns={"user_activity_group": "用户类型"}
-)
+        activity_display = (
+            activity_display.rename(
+                columns={
+                    "user_activity_group":
+                        "用户类型"
+                }
+            )
+        )
 
         st.dataframe(
             activity_display,
@@ -679,13 +972,26 @@ elif page == "👥 用户行为分析":
     # -----------------------------------------------------
     # 11.2 历史核销
     # -----------------------------------------------------
-    st.header("2. 用户历史核销表现")
+    st.header(
+        "2. 用户历史核销表现"
+    )
 
-    redeem_analysis = valid_model.copy()
+    redeem_analysis = (
+        valid_model.copy()
+    )
 
-    redeem_analysis["user_redeem_group"] = pd.cut(
-        redeem_analysis["user_mature_redeem_count"],
-        bins=[-1, 0, 2, float("inf")],
+    redeem_analysis[
+        "user_redeem_group"
+    ] = pd.cut(
+        redeem_analysis[
+            "user_mature_redeem_count"
+        ],
+        bins=[
+            -1,
+            0,
+            2,
+            float("inf")
+        ],
         labels=[
             "无历史核销",
             "历史核销1-2次",
@@ -707,36 +1013,61 @@ elif page == "👥 用户行为分析":
         .reset_index()
     )
 
-    col1, col2 = st.columns([1.4, 1])
+    col1, col2 = st.columns(
+        [1.4, 1]
+    )
 
     with col1:
 
-        fig, ax = plt.subplots(figsize=(7, 4))
-
-        ax.bar(
-            redeem_summary["user_redeem_group"].astype(str),
-            redeem_summary["核销率"] * 100
+        fig, ax = plt.subplots(
+            figsize=(7, 4)
         )
 
-        ax.set_title("不同历史核销用户的当前核销率")
-        ax.set_xlabel("用户类型")
-        ax.set_ylabel("当前核销率（%）")
+        ax.bar(
+            redeem_summary[
+                "user_redeem_group"
+            ].astype(str),
+
+            redeem_summary[
+                "核销率"
+            ] * 100
+        )
+
+        set_cn_font(
+            ax,
+            title="不同历史核销用户的当前核销率",
+            xlabel="用户类型",
+            ylabel="当前核销率（%）"
+        )
 
         plt.tight_layout()
-        st.pyplot(fig, use_container_width=True)
+
+        st.pyplot(
+            fig,
+            use_container_width=True
+        )
+
         plt.close(fig)
 
     with col2:
 
-        redeem_display = redeem_summary.copy()
+        redeem_display = (
+            redeem_summary.copy()
+        )
 
         redeem_display["核销率"] = (
-            redeem_display["核销率"] * 100
+            redeem_display["核销率"]
+            * 100
         ).round(2)
 
-        redeem_display = redeem_display.rename(
-    columns={"user_redeem_group": "用户类型"}
-)
+        redeem_display = (
+            redeem_display.rename(
+                columns={
+                    "user_redeem_group":
+                        "用户类型"
+                }
+            )
+        )
 
         st.dataframe(
             redeem_display,
@@ -747,6 +1078,7 @@ elif page == "👥 用户行为分析":
     st.success(
         """
         **关键发现：**
+
         具有多次历史核销记录的用户表现出明显更高的再次核销倾向，
         是精准营销中的重点用户群体。
         """
@@ -758,7 +1090,9 @@ elif page == "👥 用户行为分析":
 # =========================================================
 elif page == "🤖 模型效果":
 
-    st.title("🤖 机器学习模型效果")
+    st.title(
+        "🤖 机器学习模型效果"
+    )
 
     st.markdown(
         """
@@ -769,7 +1103,9 @@ elif page == "🤖 模型效果":
 
     st.divider()
 
-    st.header("1. 模型指标对比")
+    st.header(
+        "1. 模型指标对比"
+    )
 
     st.dataframe(
         model_comparison,
@@ -778,23 +1114,54 @@ elif page == "🤖 模型效果":
     )
 
     auc_candidates = [
-        col for col in model_comparison.columns
+        col
+        for col in model_comparison.columns
         if "auc" in col.lower()
     ]
 
     if len(auc_candidates) > 0:
 
-        auc_col = auc_candidates[0]
-        model_col = model_comparison.columns[0]
+        auc_col = (
+            auc_candidates[0]
+        )
 
-        chart_data = model_comparison[
-            [model_col, auc_col]
-        ].copy()
+        model_col = (
+            model_comparison.columns[0]
+        )
 
-        chart_data = chart_data.set_index(model_col)
+        chart_data = (
+            model_comparison[
+                [
+                    model_col,
+                    auc_col
+                ]
+            ].copy()
+        )
 
-        st.subheader("ROC-AUC 对比")
-        st.bar_chart(chart_data, height=300)
+        fig, ax = plt.subplots(
+            figsize=(8, 4)
+        )
+
+        ax.bar(
+            chart_data[model_col],
+            chart_data[auc_col]
+        )
+
+        set_cn_font(
+            ax,
+            title="ROC-AUC 对比",
+            xlabel="模型",
+            ylabel="ROC-AUC"
+        )
+
+        plt.tight_layout()
+
+        st.pyplot(
+            fig,
+            use_container_width=True
+        )
+
+        plt.close(fig)
 
     st.info(
         """
@@ -812,19 +1179,38 @@ elif page == "🤖 模型效果":
     st.divider()
 
     # -----------------------------------------------------
-    # 12.2 特征重要性
+    # 12.2 LightGBM 特征重要性
     # -----------------------------------------------------
-    st.header("2. LightGBM 特征重要性")
+    st.header(
+        "2. LightGBM 特征重要性"
+    )
 
-    feature_data = feature_importance.copy()
+    feature_data = (
+        feature_importance.copy()
+    )
 
-    feature_col = feature_data.columns[0]
-    importance_col = feature_data.columns[1]
+    feature_col = (
+        feature_data.columns[0]
+    )
 
-    feature_data["feature_cn"] = feature_data[
-        feature_col
-    ].map(FEATURE_NAME_MAP).fillna(
-        feature_data[feature_col]
+    importance_col = (
+        feature_data.columns[1]
+    )
+
+    feature_data[
+        "feature_cn"
+    ] = (
+        feature_data[
+            feature_col
+        ]
+        .map(
+            FEATURE_NAME_MAP
+        )
+        .fillna(
+            feature_data[
+                feature_col
+            ]
+        )
     )
 
     feature_data = (
@@ -840,23 +1226,38 @@ elif page == "🤖 模型效果":
         )
     )
 
-    fig, ax = plt.subplots(figsize=(7.5, 5))
-
-    ax.barh(
-        feature_data["feature_cn"],
-        feature_data[importance_col]
+    fig, ax = plt.subplots(
+        figsize=(8, 5.5)
     )
 
-    ax.set_title("LightGBM Top 10 特征重要性")
-    ax.set_xlabel("重要性")
-    ax.set_ylabel("特征")
+    ax.barh(
+        feature_data[
+            "feature_cn"
+        ],
+        feature_data[
+            importance_col
+        ]
+    )
+
+    set_cn_font(
+        ax,
+        title="LightGBM Top 10 特征重要性",
+        xlabel="重要性",
+        ylabel="特征"
+    )
 
     plt.tight_layout()
-    st.pyplot(fig, use_container_width=False)
+
+    st.pyplot(
+        fig,
+        use_container_width=True
+    )
+
     plt.close(fig)
 
     st.caption(
-        "特征重要性反映模型建树过程中对不同变量的使用程度，不代表因果关系。"
+        "特征重要性反映模型建树过程中对不同变量的使用程度，"
+        "不代表因果关系。"
     )
 
 
@@ -865,95 +1266,160 @@ elif page == "🤖 模型效果":
 # =========================================================
 elif page == "🎯 精准营销":
 
-    st.title("🎯 高潜样本与精准营销")
+    st.title(
+        "🎯 高潜样本与精准营销"
+    )
 
     st.markdown(
         """
         基于 LightGBM 输出的核销概率对验证集样本进行排序，
-        比较不同 Top-K 营销范围下的核销率、Lift 和核销用户捕获率。
+        比较不同 Top-K 营销范围下的核销率、
+        Lift 和核销用户捕获率。
         """
     )
 
     st.divider()
 
-    st.header("1. Top-K 营销效果")
+    st.header(
+        "1. Top-K 营销效果"
+    )
 
-    cols = st.columns(len(topk_results))
+    cols = st.columns(
+        len(topk_results)
+    )
 
-    for i, (_, row) in enumerate(topk_results.iterrows()):
+    for i, (_, row) in enumerate(
+        topk_results.iterrows()
+    ):
 
         with cols[i]:
 
             st.metric(
-                str(row["Top比例"]),
+                str(
+                    row["Top比例"]
+                ),
                 f'{row["实际核销率"]:.2%}',
                 f'Lift {row["Lift"]:.2f}'
             )
 
             st.caption(
-                f'捕获率：{row["核销用户捕获率"]:.2%}'
+                f'捕获率：'
+                f'{row["核销用户捕获率"]:.2%}'
             )
 
     st.divider()
 
-    st.header("2. 营销范围对比")
+    st.header(
+        "2. 营销范围对比"
+    )
 
-    col1, col2 = st.columns([1.5, 1])
+    col1, col2 = st.columns(
+        [1.5, 1]
+    )
 
     with col1:
 
-        plot_data = pd.DataFrame({
-            "触达范围": (
-                ["整体样本"]
-                + topk_results["Top比例"].tolist()
-            ),
-            "核销率": (
-                [baseline_rate]
-                + topk_results["实际核销率"].tolist()
-            )
-        })
+        plot_data = pd.DataFrame(
+            {
+                "触达范围": (
+                    ["整体样本"]
+                    +
+                    topk_results[
+                        "Top比例"
+                    ].tolist()
+                ),
 
-        fig, ax = plt.subplots(figsize=(7.5, 4.2))
-
-        bars = ax.bar(
-            plot_data["触达范围"],
-            plot_data["核销率"] * 100
+                "核销率": (
+                    [baseline_rate]
+                    +
+                    topk_results[
+                        "实际核销率"
+                    ].tolist()
+                )
+            }
         )
 
-        ax.set_title("不同营销触达范围的实际核销率")
-        ax.set_xlabel("触达范围")
-        ax.set_ylabel("实际核销率（%）")
+        fig, ax = plt.subplots(
+            figsize=(7.5, 4.2)
+        )
+
+        bars = ax.bar(
+            plot_data[
+                "触达范围"
+            ],
+
+            plot_data[
+                "核销率"
+            ] * 100
+        )
+
+        set_cn_font(
+            ax,
+            title="不同营销触达范围的实际核销率",
+            xlabel="触达范围",
+            ylabel="实际核销率（%）"
+        )
 
         for bar, value in zip(
             bars,
-            plot_data["核销率"]
+            plot_data[
+                "核销率"
+            ]
         ):
+
             ax.text(
-                bar.get_x() + bar.get_width() / 2,
+                bar.get_x()
+                + bar.get_width() / 2,
+
                 bar.get_height(),
+
                 f"{value:.2%}",
+
                 ha="center",
-                va="bottom"
+                va="bottom",
+
+                fontproperties=CN_FONT
             )
 
         plt.tight_layout()
-        st.pyplot(fig, use_container_width=True)
+
+        st.pyplot(
+            fig,
+            use_container_width=True
+        )
+
         plt.close(fig)
 
     with col2:
 
-        topk_display = topk_results.copy()
+        topk_display = (
+            topk_results.copy()
+        )
 
-        topk_display["实际核销率"] = (
-            topk_display["实际核销率"] * 100
+        topk_display[
+            "实际核销率"
+        ] = (
+            topk_display[
+                "实际核销率"
+            ]
+            * 100
         ).round(2)
 
-        topk_display["核销用户捕获率"] = (
-            topk_display["核销用户捕获率"] * 100
+        topk_display[
+            "核销用户捕获率"
+        ] = (
+            topk_display[
+                "核销用户捕获率"
+            ]
+            * 100
         ).round(2)
 
-        topk_display["Lift"] = (
-            topk_display["Lift"].round(2)
+        topk_display[
+            "Lift"
+        ] = (
+            topk_display[
+                "Lift"
+            ].round(2)
         )
 
         st.dataframe(
@@ -964,7 +1430,9 @@ elif page == "🎯 精准营销":
 
     st.divider()
 
-    st.header("3. 营销决策建议")
+    st.header(
+        "3. 营销决策建议"
+    )
 
     col1, col2, col3 = st.columns(3)
 
@@ -1016,18 +1484,23 @@ elif page == "🎯 精准营销":
 # =========================================================
 elif page == "💡 营销策略":
 
-    st.title("💡 综合精准营销策略")
+    st.title(
+        "💡 综合精准营销策略"
+    )
 
     st.markdown(
         """
-        综合模型预测、用户历史行为、优惠券属性和消费场景，
+        综合模型预测、用户历史行为、
+        优惠券属性和消费场景，
         将分析结果转化为可执行的营销策略。
         """
     )
 
     st.divider()
 
-    st.header("📋 营销策略汇总")
+    st.header(
+        "📋 营销策略汇总"
+    )
 
     st.dataframe(
         strategy_summary,
@@ -1037,7 +1510,9 @@ elif page == "💡 营销策略":
 
     st.divider()
 
-    st.header("🎯 最终策略框架")
+    st.header(
+        "🎯 最终策略框架"
+    )
 
     col1, col2 = st.columns(2)
 
@@ -1092,11 +1567,15 @@ elif page == "💡 营销策略":
 
     st.divider()
 
-    st.header("📌 项目最终结论")
+    st.header(
+        "📌 项目最终结论"
+    )
 
     st.markdown(
         f"""
-        验证集整体核销率为 **{baseline_rate:.2%}**，
+        验证集整体核销率为
+        **{baseline_rate:.2%}**，
+
         LightGBM筛选出的 Top 10% 高潜样本核销率达到
         **{top10_rate:.2%}**。
 
