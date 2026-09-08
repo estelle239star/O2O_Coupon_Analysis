@@ -29,7 +29,13 @@ FIGURE_DIR = BASE_DIR / "output" / "figures"
 # 3. Matplotlib 中文字体
 # =========================================================
 
-FONT_PATH = BASE_DIR / "fonts" / "NotoSansSC-Regular.ttf"
+FONT_PATH = (
+    BASE_DIR
+    / "fonts"
+    / "Noto_Sans_SC"
+    / "static"
+    / "NotoSansSC-Regular.ttf"
+)
 
 if not FONT_PATH.exists():
     st.error(f"找不到中文字体文件：{FONT_PATH}")
